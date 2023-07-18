@@ -15,9 +15,9 @@ CXX = $(ENVIRONMENT_OPTIONS) g++
 CXXFLAGS = -std=c++14
 CXXFLAGS += -Ofast -ffast-math -w
 # CXXFLAGS += -g
-CXXFLAGS += $(shell pkg-config --cflags opencv) -fPIC
+CXXFLAGS += -fPIC
 CXXFLAGS += $(INCLUDE_DIR)
-LDFLAGS = $(shell pkg-config --cflags --libs opencv) -shared -fPIC
+LDFLAGS = -shared -fPIC
 
 
 CXXSOURCES = $(shell find $(SRC_DIR)/ -name "*.cpp")
