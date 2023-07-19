@@ -11,10 +11,10 @@ namespace pm {
 	{
 	private:
 		std::shared_ptr<char[]> mData;
-		Size mSize;
-		int mChannels = 0;
-		int mElementSize = 0;
-		int mType = 0;
+        Size mSize{};
+        int mChannels{};
+        int mElementSize{};
+        int mType{};
 	public:
 		Mat();
 		Mat(Size size, int type);
