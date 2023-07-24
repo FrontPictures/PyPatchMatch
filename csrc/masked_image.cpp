@@ -25,11 +25,13 @@ MaskedImage MaskedImage::downsample() const {
     const auto size = this->size();
     const auto new_size = pm::Size(size.width / 2, size.height / 2);
 
-    auto ret = MaskedImage(new_size.width, new_size.height);
+    auto ret = MaskedImage(new_size.width, new_size.height, m_image.type());
     if (!m_global_mask.empty()) ret.init_global_mask_mat();
+    int channels = m_image.channels();
     for (int y = 0; y < size.height - 1; y += 2) {
         for (int x = 0; x < size.width - 1; x += 2) {
-            int r = 0, g = 0, b = 0, ksum = 0;
+            int ksum = 0;
+            int *colors = new int[channels]{};
             bool is_gmasked = true;
 
             for (int dy = -kernel_size.height / 2 + 1; dy <= kernel_size.height / 2; ++dy) {
@@ -42,25 +44,35 @@ MaskedImage MaskedImage::downsample() const {
                         if (!is_masked(yy, xx)) {
                             auto source_ptr = get_image(yy, xx);
                             int k = kernel[kernel_size.height / 2 - 1 + dy] * kernel[kernel_size.width / 2 - 1 + dx];
-                            r += source_ptr[0] * k, g += source_ptr[1] * k, b += source_ptr[2] * k;
+                            for (size_t c = 0; c < channels; c++) {
+                                colors[c] += source_ptr[c] * k;
+                            }
                             ksum += k;
                         }
                     }
                 }
             }
 
-            if (ksum > 0) r /= ksum, g /= ksum, b /= ksum;
+            if (ksum > 0) {
+                for (size_t c = 0; c < channels; c++) {
+                    colors[c] /= ksum;
+                }
+            }
 
             if (!m_global_mask.empty()) {
                 ret.set_global_mask(y / 2, x / 2, is_gmasked);
             }
             if (ksum > 0) {
                 auto target_ptr = ret.get_mutable_image(y / 2, x / 2);
-                target_ptr[0] = r, target_ptr[1] = g, target_ptr[2] = b;
+                for (size_t c = 0; c < channels; c++) {
+                    target_ptr[c] = colors[c];
+                }
                 ret.set_mask(y / 2, x / 2, 0);
             } else {
                 ret.set_mask(y / 2, x / 2, 1);
             }
+
+            delete[] colors;
         }
     }
 
@@ -69,8 +81,9 @@ MaskedImage MaskedImage::downsample() const {
 
 MaskedImage MaskedImage::upsample(int new_w, int new_h) const {
     const auto size = this->size();
-    auto ret = MaskedImage(new_w, new_h);
+    auto ret = MaskedImage(new_w, new_h, m_image.type());
     if (!m_global_mask.empty()) ret.init_global_mask_mat();
+    int channels = m_image.channels();
     for (int y = 0; y < new_h; ++y) {
         for (int x = 0; x < new_w; ++x) {
             int yy = y * size.height / new_h;
@@ -87,7 +100,7 @@ MaskedImage MaskedImage::upsample(int new_w, int new_h) const {
                 } else {
                     auto source_ptr = get_image(yy, xx);
                     auto target_ptr = ret.get_mutable_image(y, x);
-                    for (int c = 0; c < 3; ++c)
+                    for (int c = 0; c < channels; ++c)
                         target_ptr[c] = source_ptr[c];
                     ret.set_mask(y, x, 0);
                 }
@@ -110,8 +123,11 @@ void MaskedImage::compute_image_gradients() {
     }
 
     const auto size = m_image.size();
-    m_image_grady = pm::Mat(size, PM_8UC3);
-    m_image_gradx = pm::Mat(size, PM_8UC3);
+    int channels = m_image.channels();
+    //int type = channels == 3 ? PM_8UC3 : PM_8UC1;
+    int type = PM_MAKETYPE(PM_8U, channels);
+    m_image_grady = pm::Mat(size, type);
+    m_image_gradx = pm::Mat(size, type);
     m_image_grady = pm::Scalar::all(0);
     m_image_gradx = pm::Scalar::all(0);
 
@@ -119,11 +135,11 @@ void MaskedImage::compute_image_gradients() {
         const auto *ptr = m_image.ptr<unsigned char>(i, 0);
         const auto *ptry1 = m_image.ptr<unsigned char>(i + 1, 0);
         const auto *ptry2 = m_image.ptr<unsigned char>(i - 1, 0);
-        const auto *ptrx1 = m_image.ptr<unsigned char>(i, 0) + 3;
-        const auto *ptrx2 = m_image.ptr<unsigned char>(i, 0) - 3;
+        const auto *ptrx1 = m_image.ptr<unsigned char>(i, 0) + channels;
+        const auto *ptrx2 = m_image.ptr<unsigned char>(i, 0) - channels;
         auto *mptry = m_image_grady.ptr<unsigned char>(i, 0);
         auto *mptrx = m_image_gradx.ptr<unsigned char>(i, 0);
-        for (int j = 3; j < size.width * 3 - 3; ++j) {
+        for (int j = channels; j < size.width * channels - channels; ++j) {
             mptry[j] = (ptry1[j] / 2 - ptry2[j] / 2) + 128;
             mptrx[j] = (ptrx1[j] / 2 - ptrx2[j] / 2) + 128;
         }
@@ -135,4 +151,3 @@ void MaskedImage::compute_image_gradients() {
 void MaskedImage::compute_image_gradients() const {
     const_cast<MaskedImage *>(this)->compute_image_gradients();
 }
-

@@ -22,17 +22,17 @@ namespace {
     }
 
 
-    inline void _weighted_copy(const MaskedImage &source, int ys, int xs, pm::Mat &target, int yt, int xt, double weight) {
+    inline void _weighted_copy(const MaskedImage &source, int ys, int xs, pm::Mat &target, int yt, int xt, double weight, int channels) {
         if (source.is_masked(ys, xs)) return;
         if (source.is_globally_masked(ys, xs)) return;
 
         auto source_ptr = source.get_image(ys, xs);
         auto target_ptr = target.ptr<double>(yt, xt);
 
-#pragma unroll
-        for (int c = 0; c < 3; ++c)
+        for (size_t c = 0; c < channels; c++) {
             target_ptr[c] += static_cast<double>(source_ptr[c]) * weight;
-        target_ptr[3] += weight;
+        }
+        target_ptr[channels] += weight;
     }
 }
 
@@ -100,6 +100,8 @@ MaskedImage Inpainting::_expectation_maximization(MaskedImage source, MaskedImag
 
     MaskedImage new_source, new_target;
 
+    int channels = source.image().channels();
+
     for (int iter_em = 0; iter_em < nr_iters_em; ++iter_em) {
         if (iter_em != 0) {
             m_source2target.set_target(new_target);
@@ -134,8 +136,8 @@ MaskedImage Inpainting::_expectation_maximization(MaskedImage source, MaskedImag
             new_source = m_pyramid[level];
             new_target = target.clone();
         }
-
-        auto vote = pm::Mat(new_target.size(), PM_64FC4);
+            
+        auto vote = pm::Mat(new_target.size(), PM_MAKETYPE(PM_64F, channels + 1));
         vote.setTo(pm::Scalar::all(0));
 
         // Votes for best patch from NNF Source->Target (completeness) and Target->Source (coherence).
@@ -161,6 +163,8 @@ void Inpainting::_expectation_step(
     auto target_size = nnf.target_size();
     const int patch_size = m_distance_metric->patch_size();
 
+    int channels = source.image().channels();
+
     for (int i = 0; i < source_size.height; ++i) {
         for (int j = 0; j < source_size.width; ++j) {
             if (nnf.source().is_globally_masked(i, j)) continue;
@@ -183,11 +187,11 @@ void Inpainting::_expectation_step(
                     if (upscaled) {
                         for (int uy = 0; uy < 2; ++uy) {
                             for (int ux = 0; ux < 2; ++ux) {
-                                _weighted_copy(source, 2 * ys + uy, 2 * xs + ux, vote, 2 * yt + uy, 2 * xt + ux, w);
+                                _weighted_copy(source, 2 * ys + uy, 2 * xs + ux, vote, 2 * yt + uy, 2 * xt + ux, w, channels);
                             }
                         }
                     } else {
-                        _weighted_copy(source, ys, xs, vote, yt, xt, w);
+                        _weighted_copy(source, ys, xs, vote, yt, xt, w, channels);
                     }
                 }
             }
@@ -198,6 +202,7 @@ void Inpainting::_expectation_step(
 // Maximization Step: maximum likelihood of target pixel.
 void Inpainting::_maximization_step(MaskedImage &target, const pm::Mat &vote) {
     auto target_size = target.size();
+    int channels = target.image().channels();
     for (int i = 0; i < target_size.height; ++i) {
         for (int j = 0; j < target_size.width; ++j) {
             const double *source_ptr = vote.ptr<double>(i, j);
@@ -207,11 +212,11 @@ void Inpainting::_maximization_step(MaskedImage &target, const pm::Mat &vote) {
                 continue;
             }
 
-            if (source_ptr[3] > 0) {
-                unsigned char r = pm::saturate_cast<unsigned char>(source_ptr[0] / source_ptr[3]);
-                unsigned char g = pm::saturate_cast<unsigned char>(source_ptr[1] / source_ptr[3]);
-                unsigned char b = pm::saturate_cast<unsigned char>(source_ptr[2] / source_ptr[3]);
-                target_ptr[0] = r, target_ptr[1] = g, target_ptr[2] = b;
+            if (source_ptr[channels] > 0) {
+                for (size_t c = 0; c < channels; c++) {
+                    target_ptr[c] = pm::saturate_cast<unsigned char>(source_ptr[c]
+                                                                     / source_ptr[channels]);
+                }
             } else {
                 target.set_mask(i, j, 0);
             }
