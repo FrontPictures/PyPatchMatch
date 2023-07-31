@@ -3,7 +3,6 @@
 #include <string.h>
 #include <iostream>
 
-
 pm::Mat::Mat()
 {
 }
@@ -85,3 +84,7 @@ pm::Mat& pm::Mat::setTo(const Scalar& scalar)
 	}
 	return *this;
 }
+
+int pm::Mat::type() const { return mType; }
+
+int pm::Mat::channels() const { return mChannels; }

@@ -193,13 +193,14 @@ int distance_masked_images(
             }
 
             int ssd = 0;
-            for (int c = 0; c < 3; ++c) {
-                int s_value = p_si[xxs * 3 + c];
-                int t_value = p_ti[xxt * 3 + c];
-                int s_gy = p_sgy[xxs * 3 + c];
-                int t_gy = p_tgy[xxt * 3 + c];
-                int s_gx = p_sgx[xxs * 3 + c];
-                int t_gx = p_tgx[xxt * 3 + c];
+            int channels = source.image().channels();
+            for (int c = 0; c < channels; ++c) {
+                int s_value = p_si[xxs * channels + c];
+                int t_value = p_ti[xxt * channels + c];
+                int s_gy = p_sgy[xxs * channels + c];
+                int t_gy = p_tgy[xxt * channels + c];
+                int s_gx = p_sgx[xxs * channels + c];
+                int t_gx = p_tgx[xxt * channels + c];
 
                 ssd += pow2(static_cast<int>(s_value) - t_value);
                 ssd += pow2(static_cast<int>(s_gx) - t_gx);

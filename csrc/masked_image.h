@@ -20,8 +20,10 @@ public:
         m_image_grady(grady), m_image_gradx(gradx), m_image_grad_computed(grad_computed) {
         // pass
     }
-    MaskedImage(int width, int height) : m_global_mask(), m_image_grady(), m_image_gradx() {
-        m_image = pm::Mat(pm::Size(width, height), PM_8UC3);
+    MaskedImage(int width, int height, int type = PM_8UC3)
+        : m_global_mask(), m_image_grady(), m_image_gradx()
+    {
+        m_image = pm::Mat(pm::Size(width, height), type);
         m_image = pm::Scalar::all(0);
 
         m_mask = pm::Mat(pm::Size(width, height), PM_8U);

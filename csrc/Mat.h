@@ -36,6 +36,8 @@ namespace pm {
 		template<typename T> const T* ptr(int row, int col) const {
 			return reinterpret_cast<T*>(mData.get()) + row * mSize.width * mChannels + col * mChannels;
 		};
+        int type() const;
+        int channels() const;
 		~Mat() {};
 	};
 
